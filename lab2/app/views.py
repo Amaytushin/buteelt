@@ -38,23 +38,48 @@ def index(request):
 
 
 
-def store(request):
-    products = Product.objects.filter(is_available=True)
-    categories = Category.objects.all()
-    
+def store(request, slug=None):
+    keyword = request.GET.get('keyword', '')
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    category = None
 
-    paginator = Paginator(products, 6)  # Нэг хуудсанд 6 бүтээгдэхүүн
+    if slug:
+        category = get_object_or_404(Category, slug=slug)
+        products = Product.objects.filter(category=category, is_available=True)
+    else:
+        products = Product.objects.filter(is_available=True)
+
+    if keyword:
+        products = products.filter(
+            Q(product_name__icontains=keyword) |
+            Q(description__icontains=keyword)
+        )
+
+    if min_price:
+        products = products.filter(price__gte=min_price)
+    if max_price:
+        products = products.filter(price__lte=max_price)
+
+    categories = Category.objects.all()
+    product_count = products.count()
+
+    # Pagination
+    paginator = Paginator(products, 6)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'store.html', {
+    context = {
         'products': page_obj,
         'categories': categories,
-        'product_count': products.count(),
-        'page_obj': page_obj
-    
-    })
-
+        'product_count': product_count,
+        'page_obj': page_obj,
+        'category': category,
+        'min_price': min_price or '',
+        'max_price': max_price or '',
+        'keyword': keyword,
+    }
+    return render(request, 'store.html', context)
 
 def show_category(request, slug):
     category = get_object_or_404(Category, slug=slug)
